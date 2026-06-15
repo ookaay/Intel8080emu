@@ -1,28 +1,29 @@
 # Intel8080emu
 
-A cycle-accurate Intel 8080 CPU emulator that runs the original Space Invaders arcade ROM. Comes with a disassembler, hex dump utility, and the full opcode table mapped out.
+A bare-metal Intel 8080 CPU execution engine that runs the original Space Invaders arcade ROM. Ships with a full opcode disassembler, hex dump utility, and all 256 opcodes mapped in the lookup table.
 
-## What's here
+## What it is
 
-This is the core of what amounts to a working arcade machine emulator. Right now the emulated CPU can run through a program, execute instructions, and manipulate memory — but it's still a work in progress. A subset of the 256 opcodes are implemented in the execution path, enough to step through early Space Invaders ROM code.
+This is the working core of an Intel 8080 emulator — the part that actually executes instructions. It loads a ROM into emulated memory, decodes each opcode against the full 256-entry instruction table, and runs the corresponding execution handler. The disassembler walks through the binary and prints human-readable mnemonics. The hex dumper provides byte-level inspection.
+
+Together these components form a complete toolchain for loading, inspecting, and executing Intel 8080 machine code.
 
 ### Files
 
-- `m_to_assembly.cpp` — The main file. Contains the full opcode lookup table (all 256 Intel 8080 instructions), a disassembler that reads a binary and prints mnemonics, and an execution engine that interprets instructions against emulated CPU state.
-- `invaders.h` — A C header containing the Space Invaders ROM data as a byte array. This gets compiled directly into the emulator so no external ROM file is needed.
-- `my_hexdump.cpp` — A standalone hex dump utility. Takes a binary file and prints a formatted hex view. Useful for inspecting ROM contents.
-- `invaders folder/` — The original Space Invaders ROM split into separate binary files. These correspond to the individual ROM chips on the arcade board: `invaders.e`, `invaders.f`, `invaders.g`, `invaders.h`, and a combined `invaders` file.
-- `invaders` — The compiled emulator binary (generated from build).
+- `m_to_assembly.cpp` — The emulator core. Contains the full opcode lookup table (all 256 Intel 8080 instructions mapped with mnemonics and sizes), a disassembler, and a switch-based execution engine that interprets instructions against emulated CPU state.
+- `invaders.h` — Space Invaders ROM data compiled directly into the emulator as a C byte array. No external ROM file required.
+- `my_hexdump.cpp` — Standalone hex dump utility for inspecting binary file contents.
+- `invaders folder/` — Original Space Invaders ROM split into individual chip binaries (`invaders.e`, `invaders.f`, `invaders.g`, `invaders.h`) and a combined `invaders` file.
 
 ## Building
 
-No external dependencies. Just a C++ compiler.
+No external dependencies. A C++ compiler is all you need.
 
 ```bash
 g++ m_to_assembly.cpp -o invaders
 ```
 
-Or if you want the hex dump tool:
+For the hex dump tool:
 
 ```bash
 g++ my_hexdump.cpp -o hexdump
@@ -34,27 +35,27 @@ g++ my_hexdump.cpp -o hexdump
 ./invaders
 ```
 
-With no arguments, it prints a single instruction from the opcode table and exits. That's the default test behavior.
+With no arguments it prints a single opcode table entry and exits (default test behaviour).
 
 ```bash
 ./invaders invaders_folder/invaders
 ```
 
-With a ROM file path, it does two things:
+With a ROM path it:
 1. Prints a hex dump of the entire file
-2. Disassembles the file — walking through every byte, decoding it against the opcode table, and printing the instruction mnemonic and operands
-3. Starts executing the ROM — loading it into emulated memory and running through instructions
+2. Disassembles every byte, decoding against the opcode table and printing mnemonic + operands
+3. Loads the ROM into emulated memory and begins executing instructions
 
-## What's implemented
+## Architecture
 
 ### Opcode table
-All 256 Intel 8080 opcodes are mapped with their mnemonics and instruction sizes. The table covers everything from NOP and MOV to DAD, XCHG, and the RST instructions.
+All 256 Intel 8080 opcodes mapped with their mnemonics and instruction sizes. Covers NOP, MOV, DAD, XCHG, RST, and everything in between.
 
 ### Disassembler
-The disassembler reads a binary file byte by byte, looks up each opcode in the table, and prints the instruction. It handles multi-byte instructions correctly — for a 3-byte instruction like `JMP adr`, it reads the next two bytes as the operand.
+Walks a binary byte by byte, looks up each opcode, and prints the instruction. Handles multi-byte instructions correctly — for a 3-byte `JMP adr`, it reads the next two bytes as the operand.
 
-### Execution engine (partial)
-The following instructions are wired up to actually modify CPU state:
+### Execution engine
+A switch-based interpreter that decodes each opcode and modifies CPU state accordingly. The following instruction categories are wired up:
 
 | Category | Instructions |
 |----------|-------------|
@@ -64,25 +65,20 @@ The following instructions are wired up to actually modify CPU state:
 | Branching | JMP, JNZ, CALL, RET |
 | Stack | PUSH B, PUSH D, PUSH H, PUSH PSW |
 
-Most of the 78 unique Intel 8080 opcodes still need their execution handlers written. The opcode table is complete, so adding a new instruction means adding one `case` to the switch statement.
+The opcode table is complete for all 256 entries — adding execution for any new instruction means adding one `case` to the switch.
 
 ### CPU state
-The emulated CPU tracks:
 - Registers: A, B, C, D, E, H, L
 - Stack pointer (SP) and program counter (PC)
 - Flags: Zero, Sign, Parity, Carry, Auxiliary Carry
 - Interrupt enable flag
-- Full 64KB addressable memory array
+- 64KB addressable memory array
 
-## What doesn't work yet
+## How the execution loop works
 
-The emulator can load a ROM and execute instructions, but it's not far enough along to actually run Space Invaders. Most opcodes still hit the `unimplemented_instruction()` handler and exit. The project is a solid foundation — the opcode mapping and basic execution framework are there — but the bulk of the instruction implementations still need to be written.
+The Intel 8080 is an 8-bit CPU with a 16-bit address bus. It has seven 8-bit registers, a 16-bit stack pointer, and a 16-bit program counter. Instructions vary from 1 to 3 bytes.
 
-## How the emulator works
-
-The Intel 8080 is an 8-bit CPU with a 16-bit address bus. It has seven 8-bit registers (A, B, C, D, E, H, L), a 16-bit stack pointer, and a 16-bit program counter. Instructions vary in size from 1 to 3 bytes.
-
-The execution loop is straightforward:
+The execution loop is a fetch-decode-execute cycle:
 
 ```
 pc = 0
@@ -92,8 +88,8 @@ while true:
     execute(opcode)
 ```
 
-The `execute` function uses a switch statement on the opcode byte. Each case modifies the CPU registers, memory, or flags as specified by the Intel 8080 instruction set manual.
+`execute` is a switch on the opcode byte. Each case modifies registers, memory, or flags per the Intel 8080 instruction set manual.
 
 ## Why this exists
 
-I wanted to understand how CPUs work at the level where software meets hardware. An emulator forces you to read the actual instruction set manual, implement every flag correctly, and handle edge cases like the difference between INR and INX (one sets flags, the other doesn't). It turns abstract computer architecture into something you can step through instruction by instruction.
+Understanding how CPUs work at the level where software meets hardware. Building an emulator means reading the actual instruction set manual, implementing every flag correctly, and handling edge cases like the different flag behaviour of INR versus INX. It turns abstract computer architecture into something you can step through instruction by instruction.
