@@ -82,4 +82,4 @@ while true:
 
 The emulator tracks Zero, Sign, Parity, Carry, and Auxiliary Carry flags, plus an interrupt enable flag.
 
-For a deeper walkthrough of the opcode implementation decisions and timing constraints, check the blog post (coming).
+For a deeper walkthrough of the opcode implementation decisions and timing constraints, [check the blog post](https://ookaay.github.io/my-portfolio/blog/intel8080-emulator.html).
